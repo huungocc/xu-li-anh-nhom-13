@@ -68,3 +68,43 @@ def colorgrad(f, mask_type='sobel', T=0):
         PPG = np.where(PPG > T, PPG, 0)
 
     return VG, A, PPG
+
+
+def create_mask(edge_image, threshold=0.5):
+    # Convert edge image to binary
+    binary = (edge_image > threshold).astype(np.uint8) * 255
+
+    # Find contours
+    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Create mask
+    mask = np.zeros(edge_image.shape, dtype=np.uint8)
+    cv2.drawContours(mask, contours, -1, (255), thickness=cv2.FILLED)
+
+    # Apply morphological operations to clean up the mask
+    kernel = np.ones((5, 5), np.uint8)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+
+    return mask
+
+
+def apply_background(image, mask, background_color=None, background_image=None):
+    # If no background color or image is provided, make the background transparent
+    if background_color is None and background_image is None:
+        result = cv2.cvtColor(image, cv2.COLOR_RGB2RGBA)
+        result[:, :, 3] = mask
+        return result
+
+    # If background color is provided
+    if background_color is not None:
+        result = image.copy()
+        result[mask == 0] = background_color
+        return result
+
+    # If background image is provided
+    if background_image is not None:
+        # Resize background image to match the original image size
+        background_image = cv2.resize(background_image, (image.shape[1], image.shape[0]))
+        result = np.where(mask[:, :, np.newaxis] == 255, image, background_image)
+        return result
